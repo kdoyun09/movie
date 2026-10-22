@@ -12,13 +12,13 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# 🎨 마인크래프트 커스텀 CSS (문법 에러 방지를 위한 정돈된 스타일)
+# 🎨 마인크래프트 CSS 스타일
 # ---------------------------------------------------------
-css_code = """
+st.markdown(
+    """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+KR:wght@700;900&display=swap');
 
-/* 전체 배경 설정 */
 .stApp {
     background-color: #1e1e1e;
     background-image: 
@@ -30,7 +30,6 @@ css_code = """
     color: #ffffff;
 }
 
-/* 상단 메인 헤더 배너 */
 .mc-header-container {
     background: linear-gradient(180deg, rgba(35, 25, 15, 0.95) 0%, rgba(15, 15, 15, 0.98) 100%);
     border: 4px solid #5c3818;
@@ -41,7 +40,6 @@ css_code = """
     margin-bottom: 25px;
 }
 
-/* 마인크래프트 타이틀 폰트 */
 .mc-title {
     font-family: 'Press Start 2P', cursive;
     color: #55FF55;
@@ -50,7 +48,6 @@ css_code = """
     margin-bottom: 15px;
 }
 
-/* 캐릭터 픽셀 배너 아이콘 */
 .mob-badge-group {
     display: flex;
     justify-content: center;
@@ -58,6 +55,7 @@ css_code = """
     margin-top: 15px;
     flex-wrap: wrap;
 }
+
 .mob-badge {
     background: #000000;
     border: 2px solid #555555;
@@ -68,7 +66,6 @@ css_code = """
     box-shadow: 2px 2px 0px #000;
 }
 
-/* 데이터 지표 카드 및 표 가독성 패널 (HUD UI 스타일) */
 div[data-testid="stMetric"], div.stDataFrame {
     background: rgba(18, 18, 18, 0.92) !important;
     border: 3px solid #4a4a4a !important;
@@ -77,37 +74,36 @@ div[data-testid="stMetric"], div.stDataFrame {
     border-radius: 2px !important;
 }
 
-/* 카드 텍스트 색상 고대비 설정 */
 [data-testid="stMetricLabel"] {
     color: #FFFF55 !important;
     font-weight: bold !important;
     font-size: 1.05rem !important;
 }
+
 [data-testid="stMetricValue"] {
     color: #FFFFFF !important;
     font-weight: 900 !important;
 }
 
-/* 제목 텍스트 색상 */
 h2, h3 {
     color: #FFAA00 !important;
     text-shadow: 2px 2px 0px #000000;
     font-weight: 900 !important;
 }
 
-/* 구분선 */
 hr {
     border-top: 3px dashed #55FF55 !important;
 }
 </style>
-"""
-st.markdown(css_code, unsafe_allow_html=True)
-
+""",
+    unsafe_allow_html=True,
+)
 
 # ---------------------------------------------------------
-# ⛏️ 헤더 구성
+# ⛏️ 헤더
 # ---------------------------------------------------------
-header_html = """
+st.markdown(
+    """
 <div class="mc-header-container">
     <div class="mc-title">⛏️ MINECRAFT BOX OFFICE ⛏️</div>
     <div style="color: #DDDDDD; font-weight: bold; font-size: 1.05rem;">
@@ -121,11 +117,12 @@ header_html = """
         <span class="mob-badge" style="color: #FF2277;">🐷 돼지 (Pig)</span>
     </div>
 </div>
-"""
-st.markdown(header_html, unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
-# 1. secrets에서 API 키 가져오기
+# 1. API 키 불러오기
 def get_api_key():
     try:
         return st.secrets["KOBIS_KEY"]
@@ -133,7 +130,7 @@ def get_api_key():
         return None
 
 
-# 2. 한국 시간(KST) 기준 어제 날짜 구하기
+# 2. 한국 시간 기준 어제 날짜 구하기
 def get_yesterday_kst():
     tz_kst = pytz.timezone("Asia/Seoul")
     now_kst = datetime.datetime.now(tz_kst)
@@ -143,7 +140,7 @@ def get_yesterday_kst():
 api_key = get_api_key()
 max_selectable_date = get_yesterday_kst()
 
-# 3. 달력 선택 UI
+# 3. 날짜 선택 UI
 selected_date = st.date_input(
     label="📅 탐험할 날짜 선택 (최대 어제까지 가능)",
     value=max_selectable_date,
@@ -152,5 +149,13 @@ selected_date = st.date_input(
 )
 
 target_date = selected_date.strftime("%Y%m%d")
-st.caption(
-    f"🧱 현재 세계 시각: {selected_date.strftime('%Y-%m-%d')} (한국 표준
+date_str = selected_date.strftime("%Y-%m-%d")
+
+# 단순 문자열 연결로 문법 오류 발생 방지
+st.caption("🧱 현재 세계 시각: " + date_str + " (한국 표준시 기준)")
+
+# API 키 유효성 체크
+if not api_key:
+    st.error("🔑 [오류] KOBIS_KEY 비밀 금고 열쇠를 찾을 수 없습니다!")
+    st.info(
+        "**조치 방법:** Streamlit Cloud 설정의 Secrets 항목에 KOBIS_KEY = '발급받은키
