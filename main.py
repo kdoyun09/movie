@@ -98,22 +98,42 @@ def format_rank_change(val):
 
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
-# 외부 이미지 링크 차단이 전혀 없는 파이썬 내장 CSS/SVG 회전 황금 트로피 애니메이션
-trophy_icon_html = """
-<span style="display: inline-block; animation: spin-trophy 3s linear infinite; vertical-align: middle; margin-left: 6px; font-size: 1.4rem;">
-🏆
+# 3D 입체 원근감(Perspective)과 입체 음영 회전 효과가 적용된 3D 황금 트로피
+trophy_3d_html = """
+<span class="trophy-3d-box">
+    <span class="trophy-3d-icon">🏆</span>
 </span>
 <style>
-@keyframes spin-trophy {
-    0% { transform: rotateY(0deg); }
-    100% { transform: rotateY(360deg); }
+.trophy-3d-box {
+    display: inline-block;
+    perspective: 1000px;
+    vertical-align: middle;
+    margin-left: 8px;
+}
+.trophy-3d-icon {
+    display: inline-block;
+    font-size: 1.6rem;
+    transform-style: preserve-3d;
+    animation: spin3D 2.5s infinite linear;
+    filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.3));
+}
+@keyframes spin3D {
+    0% {
+        transform: rotateY(0deg) scale3d(1, 1, 1);
+    }
+    50% {
+        transform: rotateY(180deg) scale3d(1.15, 1.15, 1.15);
+    }
+    100% {
+        transform: rotateY(360deg) scale3d(1, 1, 1);
+    }
 }
 </style>
 """
 
 # 8. 1위 영화 상단 메트릭 카드
 top_movie = df.iloc[0]
-top_trophy = trophy_icon_html if top_movie["audiAcc"] >= 1000000 else ""
+top_trophy = trophy_3d_html if top_movie["audiAcc"] >= 1000000 else ""
 
 st.markdown(
     f"### 🥇 1위: {top_movie['movieNm']}{top_trophy}", unsafe_allow_html=True
@@ -162,13 +182,13 @@ st.altair_chart(chart, use_container_width=True)
 
 st.divider()
 
-# 10. 전체 순위 리스트 (회전 트로피 애니메이션 적용)
+# 10. 전체 순위 리스트 (3D 트로피 회전 효과 적용)
 st.subheader("📋 박스오피스 전체 순위")
 
 for idx, row in df.iterrows():
     is_million = row["audiAcc"] >= 1000000
     trophy_html = (
-        f" {trophy_icon_html} <span style='color: #d97706; font-size: 0.85rem; font-weight: bold;'>(100만 돌파!)</span>"
+        f" {trophy_3d_html} <span style='color: #d97706; font-size: 0.85rem; font-weight: bold;'>(100만 돌파!)</span>"
         if is_million
         else ""
     )
@@ -182,15 +202,4 @@ for idx, row in df.iterrows():
     with s1:
         st.caption("순위 증감")
         st.write(f"**{row['순위증감']}**")
-    with s2:
-        st.caption("개봉일")
-        st.write(f"{row['openDt']}")
-    with s3:
-        st.caption("당일 관객수")
-        st.write(f"**{int(row['audiCnt']):,}** 명")
-    with s4:
-        st.caption("누적 관객수")
-        st.write(f"**{int(row['audiAcc']):,}** 명")
-
-    st.write("")
-    st.divider()
+    with s2
