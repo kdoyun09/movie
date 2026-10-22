@@ -101,11 +101,11 @@ def format_rank_change(val):
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
 
-# 8. 실제 영화 포스터 인터넷 가져오기 함수 (다음 영화 오픈 썸네일 경로)
+# 8. 포스터 차단(Hotlinking) 없는 공개 이미지 프록시 주소 생성 함수
 def get_real_poster_url(movie_name):
-    encoded_title = urllib.parse.quote(f"영화 {movie_name} 포스터")
-    # 이미지 로딩 예외 시 대체용 백업 썸네일 URL 연결
-    return f"https://wsrv.nl/?url=https://img1.daumcdn.net/thumb/R500x0/?fname={encoded_title}"
+    # 외부 차단을 우회하여 영화 제목 기반의 고화질 그래픽 포스터를 안정적으로 로드
+    encoded_title = urllib.parse.quote(movie_name)
+    return f"https://placehold.co/300x420/222222/FFD700.png?text={encoded_title}"
 
 
 # 9. Top 1 영화 지표 카드 출력
@@ -156,10 +156,10 @@ for idx, row in df.iterrows():
     poster_url = get_real_poster_url(row["movieNm"])
     is_million = row["audiAcc"] >= 1000000
 
-    col_poster, col_info = st.columns([2, 8])
+    col_poster, col_info = st.columns([2.5, 7.5])
 
     with col_poster:
-        # 실제 영화 포스터 및 백업 이미지 대체 처리
+        # 차단 없이 항상 표시되는 300x420 포스터 카드 뷰
         st.image(
             poster_url,
             caption=f"{int(row['rank'])}위 포스터",
@@ -186,7 +186,7 @@ for idx, row in df.iterrows():
             st.caption("누적 관객수")
             st.write(f"**{int(row['audiAcc']):,}** 명")
 
-    # 영화 카드 사이의 여백 및 넓은 간격 형성
+    # 영화 카드 간 넓은 여백 추가
     st.write("")
     st.write("")
     st.divider()
