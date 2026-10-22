@@ -100,13 +100,15 @@ def format_rank_change(val):
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
 
-# 8. 실물 영화 포스터 검색 함수
+# 8. 포스터 이미지 검색 함수 (2중 백업)
 @st.cache_data(ttl=86400)
 def get_real_poster_url(movie_name):
+    # 1차 시도: TMDB 오픈 이미지 API
     try:
-        encoded_query = urllib.parse.quote(movie_name)
-        search_url = f"https://api.themoviedb.org/3/search/movie?api_key=f89a6c172ad052478546b533f8e5b4fe&query={encoded_query}&language=ko-KR"
-        res = requests.get(search_url, timeout=4)
+        clean_name = movie_name.split(":")[0].split("-")[0].strip()
+        encoded_query = urllib.parse.quote(clean_name)
+        tmdb_url = f"https://api.themoviedb.org/3/search/movie?api_key=15d2ea6d0dc1d476efbca3eba2b9bbf3&query={encoded_query}&language=ko-KR"
+        res = requests.get(tmdb_url, timeout=3)
         if res.status_code == 200:
             results = res.json().get("results", [])
             if results and results[0].get("poster_path"):
@@ -114,11 +116,14 @@ def get_real_poster_url(movie_name):
     except Exception:
         pass
 
-    encoded_title = urllib.parse.quote(movie_name[:6])
-    return f"https://dummyimage.com/300x420/1e293b/f8fafc.png&text={encoded_title}"
+    # 2차 시도: 엑박 방지용 영화 타이틀 전용 포스터 카드
+    encoded_text = urllib.parse.quote(movie_name)
+    return (
+        f"https://dummyimage.com/300x420/1e293b/f59e0b.png&text={encoded_text}"
+    )
 
 
-# 9. 1위 영화 상단 카드 출력
+# 9. 1위 영화 상단 메트릭 카드
 top_movie = df.iloc[0]
 
 st.subheader(f"🥇 1위: {top_movie['movieNm']}")
@@ -133,14 +138,14 @@ with col3:
 
 st.divider()
 
-# 10. 관객수 상위 5개 영화 막대그래프
+# 10. 상위 5개 영화 막대그래프 (1등 황금색 강조)
 st.subheader("📊 관객수 상위 5개 영화")
 top5_df = df.head(5).copy()
 
 chart_titles = []
 for idx, row in top5_df.iterrows():
     if row["rank"] == 1:
-        chart_titles.append(f"👑 1위: {row['movieNm']}")
+        chart_titles.append(f"👑 1위: {row['movieNm']} (✨황금 1위)")
     else:
         chart_titles.append(f"{int(row['rank'])}위: {row['movieNm']}")
 
@@ -153,7 +158,7 @@ st.bar_chart(chart_df)
 
 st.divider()
 
-# 11. 넓은 간격의 영화 포스터 갤러리
+# 11. 넓은 간격의 영화 포스터 카드리스트
 st.subheader("📋 전체 순위 및 포스터")
 
 for idx, row in df.iterrows():
@@ -183,9 +188,3 @@ for idx, row in df.iterrows():
         with s3:
             st.caption("당일 관객수")
             st.write(f"**{int(row['audiCnt']):,}** 명")
-        with s4:
-            st.caption("누적 관객수")
-            st.write(f"**{int(row['audiAcc']):,}** 명")
-
-    st.write("")
-    st.divider()
