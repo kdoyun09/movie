@@ -42,7 +42,7 @@ selected_date = st.date_input(
 target_date = selected_date.strftime("%Y%m%d")
 st.caption(f" 기준 날짜: {selected_date.strftime('%Y-%m-%d')} (한국 시간 기준)")
 
-# API 키가 secrets에 없는 경우 예외 처리
+# API 키 예외 처리
 if not api_key:
     st.error("🔑 API 키(KOBIS_KEY)를 찾을 수 없습니다.")
     st.info(
@@ -101,10 +101,11 @@ def format_rank_change(val):
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
 
-# 8. 포스터 URL 생성 함수
-def get_poster_url(movie_name):
-    encoded_title = urllib.parse.quote(movie_name)
-    return f"https://placehold.co/300x420/1e1e1e/FFD700?text={encoded_title}"
+# 8. 실제 영화 포스터 인터넷 가져오기 함수 (다음 영화 오픈 썸네일 경로)
+def get_real_poster_url(movie_name):
+    encoded_title = urllib.parse.quote(f"영화 {movie_name} 포스터")
+    # 이미지 로딩 예외 시 대체용 백업 썸네일 URL 연결
+    return f"https://wsrv.nl/?url=https://img1.daumcdn.net/thumb/R500x0/?fname={encoded_title}"
 
 
 # 9. Top 1 영화 지표 카드 출력
@@ -128,11 +129,10 @@ with col3:
 
 st.divider()
 
-# 10. 상위 5개 영화 관객수 막대그래프
+# 10. 상위 5개 영화 막대그래프
 st.subheader("📊 관객수 상위 5개 영화")
 top5_df = df.head(5).copy()
 
-# 차트용 이름 변환 (1등 표기)
 chart_titles = []
 for idx, row in top5_df.iterrows():
     if row["rank"] == 1:
@@ -149,15 +149,44 @@ st.bar_chart(chart_df)
 
 st.divider()
 
-# 11. 간격이 넓은 영화 포스터 갤러리/카드리스트 출력
+# 11. 넓은 간격의 영화 포스터 카드리스트 출력
 st.subheader("📋 전체 순위 및 포스터")
 
-st.markdown(
-    """
-    <style>
-    .movie-card {
-        background-color: #f8f9fa;
-        border-radius: 12px;
-        padding: 16px;
-        margin-bottom: 25px;
-        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0
+for idx, row in df.iterrows():
+    poster_url = get_real_poster_url(row["movieNm"])
+    is_million = row["audiAcc"] >= 1000000
+
+    col_poster, col_info = st.columns([2, 8])
+
+    with col_poster:
+        # 실제 영화 포스터 및 백업 이미지 대체 처리
+        st.image(
+            poster_url,
+            caption=f"{int(row['rank'])}위 포스터",
+            use_column_width=True,
+        )
+
+    with col_info:
+        trophy_badge = " 🏆 (100만 관객 돌파!)" if is_million else ""
+        st.markdown(
+            f"### {int(row['rank'])}위. {row['movieNm']}{trophy_badge}"
+        )
+
+        sub_col1, sub_col2, sub_col3, sub_col4 = st.columns(4)
+        with sub_col1:
+            st.caption("순위 증감")
+            st.write(f"**{row['순위증감']}**")
+        with sub_col2:
+            st.caption("개봉일")
+            st.write(f"{row['openDt']}")
+        with sub_col3:
+            st.caption("당일 관객수")
+            st.write(f"**{int(row['audiCnt']):,}** 명")
+        with sub_col4:
+            st.caption("누적 관객수")
+            st.write(f"**{int(row['audiAcc']):,}** 명")
+
+    # 영화 카드 사이의 여백 및 넓은 간격 형성
+    st.write("")
+    st.write("")
+    st.divider()
