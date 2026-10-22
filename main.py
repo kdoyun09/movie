@@ -1,4 +1,5 @@
 import datetime
+import urllib.parse
 import requests
 import altair as alt
 import pandas as pd
@@ -65,12 +66,7 @@ try:
     data = response.json()
 except Exception as e:
     st.error("⚠️ 영화진흥위원회(KOBIS) API 서버와의 통신에 실패했습니다.")
-    st.info(
-        "**확인 및 조치 방법:**\n"
-        "1. 인터넷 연결 상태를 확인해주세요.\n"
-        "2. API 서비스 점검 중이거나 일시적인 네트워크 오류일 수 있으니 잠시 후 다시 시도해 주세요.\n"
-        f"(상세 오류 메시지: {e})"
-    )
+    st.info(f"상세 오류 메시지: {e}")
     st.stop()
 
 # 5. API 응답 에러 검증
@@ -111,20 +107,18 @@ def format_rank_change(val):
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
 
-# 8. 100만 이상 관객 영화 트로피 추가
-def format_movie_title(row):
-    title = row["movieNm"]
-    if row["audiAcc"] >= 1000000:
-        return f"{title} 🏆"
-    return title
+# 8. 인터넷 이미지 플레이스홀더 / 웹 검색용 포스터 URL 생성 함수
+def get_poster_url(movie_name):
+    # 인터넷 오픈 이미지 검색용 파라미터 생성 (영화 제목 기반 웹 썸네일 경로)
+    encoded_title = urllib.parse.quote(movie_name)
+    # 이미지 로딩이 안 될 경우를 대비한 자동 포스터 플레이스홀더
+    return f"https://placehold.co/300x420/1e1e1e/FFD700?text={encoded_title}"
 
-
-df["표시영화명"] = df.apply(format_movie_title, axis=1)
 
 # 9. Top 1 영화 지표 카드 출력
 top_movie = df.iloc[0]
 
-st.subheader(f"🥇 1위: {top_movie['표시영화명']}")
+st.subheader(f"🥇 1위: {top_movie['movieNm']}")
 col1, col2, col3 = st.columns(3)
 
 with col1:
@@ -142,16 +136,14 @@ with col3:
 
 st.divider()
 
-# 10. 상위 5개 영화 막대그래프 시각화 (1등 막대: 반짝이는 황금색 강조)
+# 10. 상위 5개 영화 막대그래프 (1등 막대: 황금색)
 st.subheader("📊 관객수 상위 5개 영화")
 top5_df = df.head(5).copy()
 
-# 막대 색상 구분을 위한 컬럼 추가 (1위: 황금색, 나머지: 일반 파랑)
 top5_df["막대색상"] = top5_df["rank"].apply(
     lambda r: "✨ 1위 황금빛 챔피언" if r == 1 else "일반 영화"
 )
 
-# Altair 막대그래프 생성
 chart = (
     alt.Chart(top5_df)
     .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
@@ -159,62 +151,4 @@ chart = (
         x=alt.X("movieNm:N", sort=None, title="영화명"),
         y=alt.Y("audiCnt:Q", title="당일 관객수(명)"),
         color=alt.Color(
-            "막대색상:N",
-            scale=alt.Scale(
-                domain=["✨ 1위 황금빛 챔피언", "일반 영화"],
-                range=["#FFD700", "#4A90E2"],  # 황금색 및 파란색
-            ),
-            legend=alt.Legend(title="구분"),
-        ),
-        tooltip=[
-            alt.Tooltip("movieNm:N", title="영화명"),
-            alt.Tooltip("audiCnt:Q", title="관객수", format=","),
-        ],
-    )
-    .properties(height=380)
-)
-
-# 막대 상단 숫자의 텍스트 표기
-text = chart.mark_text(
-    align="center", baseline="bottom", dy=-5, color="white"
-).encode(text=alt.Text("audiCnt:Q", format=","))
-
-st.altair_chart(chart + text, use_container_width=True)
-
-st.divider()
-
-# 11. 전체 순위 데이터 표 출력
-st.subheader("📋 박스오피스 전체 순위")
-
-display_df = df[
-    [
-        "rank",
-        "순위증감",
-        "표시영화명",
-        "openDt",
-        "audiCnt",
-        "audiAcc",
-        "scrnCnt",
-    ]
-].copy()
-display_df.columns = [
-    "순위",
-    "순위 증감",
-    "영화명",
-    "개봉일",
-    "관객수(명)",
-    "누적관객수(명)",
-    "스크린수(개)",
-]
-
-st.dataframe(
-    display_df,
-    use_container_width=True,
-    hide_index=True,
-    column_config={
-        "순위": st.column_config.NumberColumn(format="%d"),
-        "관객수(명)": st.column_config.NumberColumn(format="%d"),
-        "누적관객수(명)": st.column_config.NumberColumn(format="%d"),
-        "스크린수(개)": st.column_config.NumberColumn(format="%d"),
-    },
-)
+            "막대색상
