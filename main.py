@@ -104,7 +104,6 @@ df["순위증감"] = df["rankInten"].apply(format_rank_change)
 @st.cache_data(ttl=86400)
 def get_real_poster_url(movie_name):
     try:
-        # TMDB 오픈 웹 포스터 주소 연결
         encoded_query = urllib.parse.quote(movie_name)
         search_url = f"https://api.themoviedb.org/3/search/movie?api_key=f89a6c172ad052478546b533f8e5b4fe&query={encoded_query}&language=ko-KR"
         res = requests.get(search_url, timeout=4)
@@ -115,7 +114,6 @@ def get_real_poster_url(movie_name):
     except Exception:
         pass
 
-    # 백업용 영화 아이콘 그래픽 카드
     encoded_title = urllib.parse.quote(movie_name[:6])
     return f"https://dummyimage.com/300x420/1e293b/f8fafc.png&text={encoded_title}"
 
@@ -149,3 +147,45 @@ for idx, row in top5_df.iterrows():
 top5_df["차트표시명"] = chart_titles
 
 chart_df = top5_df.set_index("차트표시명")[["audiCnt"]]
+chart_df.columns = ["당일 관객수"]
+
+st.bar_chart(chart_df)
+
+st.divider()
+
+# 11. 넓은 간격의 영화 포스터 갤러리
+st.subheader("📋 전체 순위 및 포스터")
+
+for idx, row in df.iterrows():
+    poster_url = get_real_poster_url(row["movieNm"])
+    is_million = row["audiAcc"] >= 1000000
+
+    col_poster, col_info = st.columns([2.5, 7.5])
+
+    with col_poster:
+        st.image(
+            poster_url,
+            caption=f"{int(row['rank'])}위 포스터",
+            use_container_width=True,
+        )
+
+    with col_info:
+        badge = " 🏆 (100만 관객 돌파!)" if is_million else ""
+        st.markdown(f"### {int(row['rank'])}위. {row['movieNm']}{badge}")
+
+        s1, s2, s3, s4 = st.columns(4)
+        with s1:
+            st.caption("순위 증감")
+            st.write(f"**{row['순위증감']}**")
+        with s2:
+            st.caption("개봉일")
+            st.write(f"{row['openDt']}")
+        with s3:
+            st.caption("당일 관객수")
+            st.write(f"**{int(row['audiCnt']):,}** 명")
+        with s4:
+            st.caption("누적 관객수")
+            st.write(f"**{int(row['audiAcc']):,}** 명")
+
+    st.write("")
+    st.divider()
