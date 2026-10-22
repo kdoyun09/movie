@@ -98,16 +98,15 @@ def format_rank_change(val):
 
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
+# 회전 트로피 GIF 태그 정의
+trophy_gif = '<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcDQ3OHI3bzB5Z2I1OGNkdHlhOGoxNHUzaXgwbTN5NXBybGF1NWdtOCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/l41Yc0uM3qA4M8Obe/giphy.gif" width="28" style="vertical-align: middle; margin-left: 6px;">'
+
 # 8. 1위 영화 상단 메트릭 카드
 top_movie = df.iloc[0]
-
-# 100만 관객 돌파 시 회전 트로피 GIF 추가
-spinning_trophy = '<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcDQ3OHI3bzB5Z2I1OGNkdHlhOGoxNHUzaXgwbTN5NXBybGF1NWdtOCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/l41Yc0uM3qA4M8Obe/giphy.gif" width="30" style="vertical-align: middle; margin-left: 6px;">'
-top_trophy_html = spinning_trophy if top_movie["audiAcc"] >= 1000000 else ""
+top_trophy = trophy_gif if top_movie["audiAcc"] >= 1000000 else ""
 
 st.markdown(
-    f"### 🥇 1위: {top_movie['movieNm']}{top_trophy_html}",
-    unsafe_allow_html=True,
+    f"### 🥇 1위: {top_movie['movieNm']}{top_trophy}", unsafe_allow_html=True
 )
 
 col1, col2, col3 = st.columns(3)
@@ -153,9 +152,35 @@ st.altair_chart(chart, use_container_width=True)
 
 st.divider()
 
-# 10. 전체 순위 리스트 (회전 트로피 GIF 완벽 지원)
+# 10. 전체 순위 리스트 (회전 트로피 GIF 적용)
 st.subheader("📋 박스오피스 전체 순위")
 
 for idx, row in df.iterrows():
     is_million = row["audiAcc"] >= 1000000
-    trophy
+    trophy_html = (
+        f" {trophy_gif} <span style='color: #d97706; font-size: 0.85rem; font-weight: bold;'>(100만 돌파!)</span>"
+        if is_million
+        else ""
+    )
+
+    st.markdown(
+        f"#### {int(row['rank'])}위. **{row['movieNm']}**{trophy_html}",
+        unsafe_allow_html=True,
+    )
+
+    s1, s2, s3, s4 = st.columns(4)
+    with s1:
+        st.caption("순위 증감")
+        st.write(f"**{row['순위증감']}**")
+    with s2:
+        st.caption("개봉일")
+        st.write(f"{row['openDt']}")
+    with s3:
+        st.caption("당일 관객수")
+        st.write(f"**{int(row['audiCnt']):,}** 명")
+    with s4:
+        st.caption("누적 관객수")
+        st.write(f"**{int(row['audiAcc']):,}** 명")
+
+    st.write("")
+    st.divider()
