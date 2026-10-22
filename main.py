@@ -1,8 +1,8 @@
 import datetime
 import requests
+import altair as alt
 import pandas as pd
 import pytz
-import plotly.express as px
 import streamlit as st
 
 # 페이지 기본 설정
@@ -28,11 +28,11 @@ def get_yesterday_kst():
     return now_kst.date() - datetime.timedelta(days=1)
 
 
-# API 키 확인 및 날짜 설정
+# API 키 확인 및 날짜 계산
 api_key = get_api_key()
 max_selectable_date = get_yesterday_kst()
 
-# 3. 달력을 통한 조회 날짜 선택 UI (기본값: 어제, 선택 가능 최댓값: 어제)
+# 3. 달력을 통한 조회 날짜 선택 UI
 selected_date = st.date_input(
     label="📅 조회할 날짜를 선택하세요 (최대 어제까지 선택 가능)",
     value=max_selectable_date,
@@ -45,7 +45,7 @@ st.caption(
     f" 기준 날짜: {selected_date.strftime('%Y-%m-%d')} (한국 시간 기준)"
 )
 
-# API 키가 secrets에 없는 경우 예외 처리
+# API 키 예외 처리
 if not api_key:
     st.error("🔑 API 키(KOBIS_KEY)를 찾을 수 없습니다.")
     st.info(
@@ -80,24 +80,14 @@ if "faultInfo" in data or not box_office_result:
     fault = data.get("faultInfo", {})
     message = fault.get("message", "응답 데이터가 올바르지 않습니다.")
     st.error("⚠️ API 응답 오류가 발생했습니다.")
-    st.info(
-        "**확인 및 조치 방법:**\n"
-        f"1. **오류 메시지:** {message}\n"
-        "2. Secrets에 등록된 KOBIS API 인증키가 정당한 키인지 확인해 주세요.\n"
-        "3. 영화진흥위원회 오픈API 마이페이지에서 키 상태 및 일일 사용량을 확인해 주세요."
-    )
+    st.info(f"오류 메시지: {message}")
     st.stop()
 
 daily_list = box_office_result.get("dailyBoxOfficeList", [])
 
-# 영화 목록이 비어 있는 경우 처리
 if not daily_list:
     st.warning("ℹ️ 그날은 아직 집계 전입니다.")
-    st.info(
-        "**확인 및 조치 방법:**\n"
-        "1. 해당 날짜의 박스오피스 데이터 집계가 아직 완료되지 않았을 수 있습니다.\n"
-        "2. 날짜를 변경하거나 잠시 후 다시 시도해 주세요."
-    )
+    st.info("다른 날짜를 선택하거나 잠시 후 다시 시도해 주세요.")
     st.stop()
 
 # 6. 데이터 프레임 변환 및 전처리
@@ -121,28 +111,22 @@ def format_rank_change(val):
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
 
-# 8. 누적관객 100만 명 이상 영화명 옆에 움직이는 따봉 GIF 배치
+# 8. 100만 이상 관객 영화 트로피 추가
 def format_movie_title(row):
     title = row["movieNm"]
     if row["audiAcc"] >= 1000000:
-        # 움직이는 따봉 GIF 애니메이션 이미지
-        thumbs_up_gif = '<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcTYxdXZmZGcxNWZreThvZ2Q4eDFtbXlzamE5ZTF0bThtMjQxeTdyYyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/111ebonMs90YLu/giphy.gif" width="22" style="vertical-align: middle; margin-left: 5px;">'
-        return f"{title} {thumbs_up_gif}"
+        return f"{title} 🏆"
     return title
 
 
 df["표시영화명"] = df.apply(format_movie_title, axis=1)
 
-# 9. Top 1 영화 지표 카드(Metric) 출력
+# 9. Top 1 영화 지표 카드 출력
 top_movie = df.iloc[0]
 
-# HTML 표기 허용으로 따봉 GIF가 나오도록 설정
-st.subheader(f"🥇 1위: {top_movie['표시영화명']}", anchor=False)
-st.markdown(
-    f"<h3>🥇 1위: {top_movie['표시영화명']}</h3>", unsafe_allow_html=True
-)
-
+st.subheader(f"🥇 1위: {top_movie['표시영화명']}")
 col1, col2, col3 = st.columns(3)
+
 with col1:
     st.metric(
         label="당일 관객수", value=f"{int(top_movie['audiCnt']):,} 명"
@@ -158,35 +142,48 @@ with col3:
 
 st.divider()
 
-# 10. 관객수 상위 5개 영화 막대그래프 (1등 색상: 금색, 나머지: 파란색)
+# 10. 상위 5개 영화 막대그래프 시각화 (1등 막대: 반짝이는 황금색 강조)
 st.subheader("📊 관객수 상위 5개 영화")
 top5_df = df.head(5).copy()
 
-# 1등 막대는 금색(#FFD700), 나머지는 파란색(#1F77B4)으로 지정
-colors = ["#FFD700"] + ["#1F77B4"] * (len(top5_df) - 1)
-
-# Plotly 차트 생성
-fig = px.bar(
-    top5_df,
-    x="movieNm",
-    y="audiCnt",
-    labels={"movieNm": "영화명", "audiCnt": "당일 관객수(명)"},
-    text_auto=",.0f",  # 막대 위에 숫자 값 표기
+# 막대 색상 구분을 위한 컬럼 추가 (1위: 황금색, 나머지: 일반 파랑)
+top5_df["막대색상"] = top5_df["rank"].apply(
+    lambda r: "✨ 1위 황금빛 챔피언" if r == 1 else "일반 영화"
 )
 
-# 막대 색상 커스텀 반영
-fig.update_traces(marker_color=colors, textposition="outside")
-fig.update_layout(
-    xaxis_title=None,
-    yaxis_title="관객수 (명)",
-    margin=dict(l=20, r=20, t=20, b=20),
+# Altair 막대그래프 생성
+chart = (
+    alt.Chart(top5_df)
+    .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+    .encode(
+        x=alt.X("movieNm:N", sort=None, title="영화명"),
+        y=alt.Y("audiCnt:Q", title="당일 관객수(명)"),
+        color=alt.Color(
+            "막대색상:N",
+            scale=alt.Scale(
+                domain=["✨ 1위 황금빛 챔피언", "일반 영화"],
+                range=["#FFD700", "#4A90E2"],  # 황금색 및 파란색
+            ),
+            legend=alt.Legend(title="구분"),
+        ),
+        tooltip=[
+            alt.Tooltip("movieNm:N", title="영화명"),
+            alt.Tooltip("audiCnt:Q", title="관객수", format=","),
+        ],
+    )
+    .properties(height=380)
 )
 
-st.plotly_chart(fig, use_container_width=True)
+# 막대 상단 숫자의 텍스트 표기
+text = chart.mark_text(
+    align="center", baseline="bottom", dy=-5, color="white"
+).encode(text=alt.Text("audiCnt:Q", format=","))
+
+st.altair_chart(chart + text, use_container_width=True)
 
 st.divider()
 
-# 11. 전체 순위 데이터 표(Table) 출력
+# 11. 전체 순위 데이터 표 출력
 st.subheader("📋 박스오피스 전체 순위")
 
 display_df = df[
@@ -200,7 +197,6 @@ display_df = df[
         "scrnCnt",
     ]
 ].copy()
-
 display_df.columns = [
     "순위",
     "순위 증감",
@@ -211,18 +207,12 @@ display_df.columns = [
     "스크린수(개)",
 ]
 
-# 표 안에서 GIF 애니메이션 이미지를 그려내기 위해 HTML 컬럼으로 설정
-st.data_editor(
+st.dataframe(
     display_df,
     use_container_width=True,
     hide_index=True,
-    disabled=True,  # 읽기 전용으로 설정
     column_config={
         "순위": st.column_config.NumberColumn(format="%d"),
-        "영화명": st.column_config.HtmlColumn(
-            "영화명",
-            help="100만 관객 돌파 영화에는 움직이는 따봉 표시가 붙습니다.",
-        ),
         "관객수(명)": st.column_config.NumberColumn(format="%d"),
         "누적관객수(명)": st.column_config.NumberColumn(format="%d"),
         "스크린수(개)": st.column_config.NumberColumn(format="%d"),
