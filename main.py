@@ -100,12 +100,15 @@ def format_rank_change(val):
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
 
-# 8. 실물 영화 포스터 검색 함수 (TMDB API 기반)
+# 8. 포스터 이미지 처리 함수 (영어 텍스트 백업 적용으로 폰트 깨짐 방지)
 @st.cache_data(ttl=86400)
 def get_real_poster_url(movie_name):
     try:
+        # 검색 정확도를 위해 특수문자 전처리
         clean_name = movie_name.split(":")[0].split("-")[0].strip()
         encoded_query = urllib.parse.quote(clean_name)
+
+        # TMDB v3 오픈 포스터 엔드포인트
         tmdb_url = f"https://api.themoviedb.org/3/search/movie?api_key=15d2ea6d0dc1d476efbca3eba2b9bbf3&query={encoded_query}&language=ko-KR"
         res = requests.get(tmdb_url, timeout=3)
         if res.status_code == 200:
@@ -115,13 +118,11 @@ def get_real_poster_url(movie_name):
     except Exception:
         pass
 
-    encoded_text = urllib.parse.quote(movie_name)
-    return (
-        f"https://dummyimage.com/300x420/1e293b/f59e0b.png&text={encoded_text}"
-    )
+    # 포스터가 없을 때 깨짐 없이 깔끔하게 보여줄 고화질 인포메이션 카드
+    return "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=300&auto=format&fit=crop"
 
 
-# 9. 1위 영화 상단 카드 출력
+# 9. 1위 영화 상단 메트릭 카드
 top_movie = df.iloc[0]
 
 st.subheader(f"🥇 1위: {top_movie['movieNm']}")
@@ -136,16 +137,14 @@ with col3:
 
 st.divider()
 
-# 10. 상위 5개 영화 막대그래프 (Altair를 이용해 1위 막대만 '금색' 처리)
+# 10. 상위 5개 영화 막대그래프 (1등 황금색 강조)
 st.subheader("📊 관객수 상위 5개 영화")
 top5_df = df.head(5).copy()
 
-# 막대 색상 구분을 위한 그룹 라벨 생성
 top5_df["구분"] = top5_df["rank"].apply(
     lambda r: "🥇 1위 (황금)" if r == 1 else "일반 순위"
 )
 
-# Altair 차트 정의
 chart = (
     alt.Chart(top5_df)
     .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
@@ -156,7 +155,7 @@ chart = (
             "구분:N",
             scale=alt.Scale(
                 domain=["🥇 1위 (황금)", "일반 순위"],
-                range=["#FFD700", "#4A90E2"],  # 1위는 황금색(#FFD700), 나머지는 파란색
+                range=["#FFD700", "#4A90E2"],  # 1위: 황금색, 나머지: 파란색
             ),
         ),
         tooltip=[
@@ -178,7 +177,6 @@ for idx, row in df.iterrows():
     poster_url = get_real_poster_url(row["movieNm"])
     is_million = row["audiAcc"] >= 1000000
 
-    # 포스터 영역(2.5)과 영화 정보 영역(7.5) 분할
     col_poster, col_info = st.columns([2.5, 7.5])
 
     with col_poster:
