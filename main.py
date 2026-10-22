@@ -1,7 +1,6 @@
 import datetime
-import math
+import altair as alt
 import pandas as pd
-import plotly.graph_objects as go
 import pytz
 import requests
 import streamlit as st
@@ -99,7 +98,7 @@ def format_rank_change(val):
 
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
-# 3D 입체 회전 황금 트로피 HTML
+# 3D 입체 원근감 및 회전 애니메이션이 적용된 황금 트로피
 trophy_3d_html = """
 <span style="display: inline-block; perspective: 1000px; vertical-align: middle; margin-left: 8px;">
     <span style="display: inline-block; font-size: 1.6rem; transform-style: preserve-3d; animation: spin3D 2.5s infinite linear; filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.3));">🏆</span>
@@ -113,7 +112,7 @@ trophy_3d_html = """
 </style>
 """
 
-# 8. 1위 영화 상단 카드
+# 8. 1위 영화 상단 메트릭 카드
 top_movie = df.iloc[0]
 top_trophy = trophy_3d_html if top_movie["audiAcc"] >= 1000000 else ""
 
@@ -131,100 +130,40 @@ with col3:
 
 st.divider()
 
-# 9. 상위 5개 영화 3D 입체 원기둥 차트 생성
-st.subheader("📊 관객수 상위 5개 영화 (3D 입체 원기둥 차트)")
+# 9. 상위 5개 영화 막대그래프 (1등 황금색 강조)
+st.subheader("📊 관객수 상위 5개 영화")
 top5_df = df.head(5).copy()
 
-fig = go.Figure()
-
-# 1위는 황금색(#FFD700), 나머지는 시원한 파란색 계열
-colors = ["#FFD700", "#3B82F6", "#60A5FA", "#93C5FD", "#BFDBFE"]
-
-
-# 3D 원기둥을 그리는 메쉬 생성 함수
-def make_cylinder(x_center, radius, height, num_sides=32):
-    angles = [
-        2 * math.pi * i / num_sides for i in range(num_sides)
-    ] + [0]
-    # 바닥 원 및 윗면 원의 x, y, z 좌표
-    x_bottom = [x_center + radius * math.cos(a) for a in angles]
-    y_bottom = [radius * math.sin(a) for a in angles]
-    z_bottom = [0] * len(angles)
-
-    x_top = x_bottom
-    y_top = y_bottom
-    z_top = [height] * len(angles)
-
-    x = x_bottom + x_top
-    y = y_bottom + y_top
-    z = z_bottom + z_top
-
-    # 메쉬 삼각형 면(Face) 연결
-    i, j, k = [], [], []
-    n = num_sides + 1
-    for idx in range(num_sides):
-        # 옆면
-        i.extend([idx, idx + 1, idx])
-        j.extend([idx + 1, idx + n + 1, idx + n])
-        k.extend([idx + n + 1, idx + n, idx + n + 1])
-
-    return x, y, z, i, j, k
-
-
-# 상위 5개 영화에 대해 3D 원기둥 배치
-for idx, row in top5_df.iterrows():
-    height = row["audiCnt"]
-    movie_name = row["movieNm"]
-    color = colors[idx]
-
-    x, y, z, i_idx, j_idx, k_idx = make_cylinder(
-        x_center=idx * 2.5, radius=0.8, height=height
-    )
-
-    fig.add_trace(
-        go.Mesh3d(
-            x=x,
-            y=y,
-            z=z,
-            i=i_idx,
-            j=j_idx,
-            k=k_idx,
-            color=color,
-            opacity=0.95,
-            name=f"{idx+1}위: {movie_name}",
-            hovertemplate=f"<b>{int(row['rank'])}위. {movie_name}</b><br>관객수: {int(height):,}명<extra></extra>",
-        )
-    )
-
-# 3D 축 및 카테고리 레이블 설정
-x_ticks = [i * 2.5 for i in range(len(top5_df))]
-x_labels = [f"{int(r['rank'])}위<br>{r['movieNm'][:6]}" for _, r in top5_df.iterrows()]
-
-fig.update_layout(
-    scene=dict(
-        xaxis=dict(
-            title="영화명",
-            tickmode="array",
-            tickvals=x_ticks,
-            ticktext=x_labels,
-            showgrid=True,
-        ),
-        yaxis=dict(visible=False),  # 두께(Y축) 숨김
-        zaxis=dict(title="당일 관객수(명)", showgrid=True),
-        camera=dict(
-            eye=dict(x=1.8, y=-1.8, z=1.2)  # 입체감을 잘 보여주는 3D 시점
-        ),
-    ),
-    margin=dict(l=0, r=0, b=0, t=20),
-    height=450,
-    showlegend=True,
+top5_df["구분"] = top5_df["rank"].apply(
+    lambda r: "🥇 1위 (황금)" if r == 1 else "일반 순위"
 )
 
-st.plotly_chart(fig, use_container_width=True)
+chart = (
+    alt.Chart(top5_df)
+    .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+    .encode(
+        x=alt.X("movieNm:N", sort=None, title="영화명"),
+        y=alt.Y("audiCnt:Q", title="당일 관객수(명)"),
+        color=alt.Color(
+            "구분:N",
+            scale=alt.Scale(
+                domain=["🥇 1위 (황금)", "일반 순위"],
+                range=["#FFD700", "#4A90E2"],  # 1위: 황금색(#FFD700), 나머지: 파란색
+            ),
+        ),
+        tooltip=[
+            alt.Tooltip("movieNm:N", title="영화명"),
+            alt.Tooltip("audiCnt:Q", title="관객수", format=","),
+        ],
+    )
+    .properties(height=350)
+)
+
+st.altair_chart(chart, use_container_width=True)
 
 st.divider()
 
-# 10. 전체 순위 리스트 (3D 회전 트로피 적용)
+# 10. 전체 순위 리스트 (3D 회전 트로피 및 상세 정보)
 st.subheader("📋 박스오피스 전체 순위")
 
 for idx, row in df.iterrows():
