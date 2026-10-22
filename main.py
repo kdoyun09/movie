@@ -1,5 +1,6 @@
 import datetime
 import urllib.parse
+import altair as alt
 import pandas as pd
 import pytz
 import requests
@@ -43,7 +44,6 @@ target_date = selected_date.strftime("%Y%m%d")
 date_display = selected_date.strftime("%Y-%m-%d")
 st.caption(f"기준 날짜: {date_display} (한국 시간 기준)")
 
-# API 키 유효성 확인
 if not api_key:
     st.error("🔑 API 키(KOBIS_KEY)를 찾을 수 없습니다.")
     st.info("Secrets 항목에 KOBIS_KEY를 등록해 주세요.")
@@ -100,10 +100,9 @@ def format_rank_change(val):
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
 
-# 8. 포스터 이미지 검색 함수 (2중 백업)
+# 8. 실물 영화 포스터 검색 함수 (TMDB API 기반)
 @st.cache_data(ttl=86400)
 def get_real_poster_url(movie_name):
-    # 1차 시도: TMDB 오픈 이미지 API
     try:
         clean_name = movie_name.split(":")[0].split("-")[0].strip()
         encoded_query = urllib.parse.quote(clean_name)
@@ -116,14 +115,13 @@ def get_real_poster_url(movie_name):
     except Exception:
         pass
 
-    # 2차 시도: 엑박 방지용 영화 타이틀 전용 포스터 카드
     encoded_text = urllib.parse.quote(movie_name)
     return (
         f"https://dummyimage.com/300x420/1e293b/f59e0b.png&text={encoded_text}"
     )
 
 
-# 9. 1위 영화 상단 메트릭 카드
+# 9. 1위 영화 상단 카드 출력
 top_movie = df.iloc[0]
 
 st.subheader(f"🥇 1위: {top_movie['movieNm']}")
@@ -138,33 +136,49 @@ with col3:
 
 st.divider()
 
-# 10. 상위 5개 영화 막대그래프 (1등 황금색 강조)
+# 10. 상위 5개 영화 막대그래프 (Altair를 이용해 1위 막대만 '금색' 처리)
 st.subheader("📊 관객수 상위 5개 영화")
 top5_df = df.head(5).copy()
 
-chart_titles = []
-for idx, row in top5_df.iterrows():
-    if row["rank"] == 1:
-        chart_titles.append(f"👑 1위: {row['movieNm']} (✨황금 1위)")
-    else:
-        chart_titles.append(f"{int(row['rank'])}위: {row['movieNm']}")
+# 막대 색상 구분을 위한 그룹 라벨 생성
+top5_df["구분"] = top5_df["rank"].apply(
+    lambda r: "🥇 1위 (황금)" if r == 1 else "일반 순위"
+)
 
-top5_df["차트표시명"] = chart_titles
+# Altair 차트 정의
+chart = (
+    alt.Chart(top5_df)
+    .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+    .encode(
+        x=alt.X("movieNm:N", sort=None, title="영화명"),
+        y=alt.Y("audiCnt:Q", title="당일 관객수(명)"),
+        color=alt.Color(
+            "구분:N",
+            scale=alt.Scale(
+                domain=["🥇 1위 (황금)", "일반 순위"],
+                range=["#FFD700", "#4A90E2"],  # 1위는 황금색(#FFD700), 나머지는 파란색
+            ),
+        ),
+        tooltip=[
+            alt.Tooltip("movieNm:N", title="영화명"),
+            alt.Tooltip("audiCnt:Q", title="관객수", format=","),
+        ],
+    )
+    .properties(height=350)
+)
 
-chart_df = top5_df.set_index("차트표시명")[["audiCnt"]]
-chart_df.columns = ["당일 관객수"]
-
-st.bar_chart(chart_df)
+st.altair_chart(chart, use_container_width=True)
 
 st.divider()
 
-# 11. 넓은 간격의 영화 포스터 카드리스트
+# 11. 넓은 여백의 실물 포스터 갤러리
 st.subheader("📋 전체 순위 및 포스터")
 
 for idx, row in df.iterrows():
     poster_url = get_real_poster_url(row["movieNm"])
     is_million = row["audiAcc"] >= 1000000
 
+    # 포스터 영역(2.5)과 영화 정보 영역(7.5) 분할
     col_poster, col_info = st.columns([2.5, 7.5])
 
     with col_poster:
@@ -188,3 +202,9 @@ for idx, row in df.iterrows():
         with s3:
             st.caption("당일 관객수")
             st.write(f"**{int(row['audiCnt']):,}** 명")
+        with s4:
+            st.caption("누적 관객수")
+            st.write(f"**{int(row['audiAcc']):,}** 명")
+
+    st.write("")
+    st.divider()
