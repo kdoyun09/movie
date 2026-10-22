@@ -1,18 +1,17 @@
 import datetime
-import requests
+import altair as alt
 import pandas as pd
 import pytz
-import altair as alt
+import requests
 import streamlit as st
 
 # 페이지 기본 설정
 st.set_page_config(
-    page_title="일별 박스오피스 순위",
-    page_icon="🎬",
-    layout="wide"
+    page_title="일별 박스오피스 순위", page_icon="🎬", layout="wide"
 )
 
 st.title("🎬 일별 박스오피스 순위 조회")
+
 
 # 1. secrets에서 KOBIS API 키 불러오기
 def get_api_key():
@@ -21,11 +20,13 @@ def get_api_key():
     except Exception:
         return None
 
+
 # 2. 한국 시간 기준 어제 날짜 구하기
 def get_yesterday_kst():
-    tz_kst = pytz.timezone('Asia/Seoul')
+    tz_kst = pytz.timezone("Asia/Seoul")
     now_kst = datetime.datetime.now(tz_kst)
     return now_kst.date() - datetime.timedelta(days=1)
+
 
 api_key = get_api_key()
 max_selectable_date = get_yesterday_kst()
@@ -35,7 +36,7 @@ selected_date = st.date_input(
     label="📅 조회할 날짜 선택 (최대 어제까지 가능)",
     value=max_selectable_date,
     max_value=max_selectable_date,
-    min_value=datetime.date(2004, 1, 1)
+    min_value=datetime.date(2004, 1, 1),
 )
 
 target_date = selected_date.strftime("%Y%m%d")
@@ -49,10 +50,7 @@ if not api_key:
 
 # 4. KOBIS 박스오피스 API 요청
 url = "https://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json"
-params = {
-    'key': api_key,
-    'targetDt': target_date
-}
+params = {"key": api_key, "targetDt": target_date}
 
 try:
     response = requests.get(url, params=params, timeout=10)
@@ -87,6 +85,7 @@ numeric_cols = ["rank", "rankInten", "audiCnt", "audiAcc", "scrnCnt"]
 for col in numeric_cols:
     df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
+
 # 7. 순위 증감 포맷팅
 def format_rank_change(val):
     if val > 0:
@@ -96,16 +95,29 @@ def format_rank_change(val):
     else:
         return "-"
 
+
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
-# 안정적인 회전 트로피 GIF 태그 정의 (Wikimedia 계열의 고화질 GIF)
-trophy_gif = '<img src="https://upload.wikimedia.org/wikipedia/commons/d/d4/Trophy_icon.gif" width="28" style="vertical-align: middle; margin-left: 6px;">'
+# 외부 이미지 링크 차단이 전혀 없는 파이썬 내장 CSS/SVG 회전 황금 트로피 애니메이션
+trophy_icon_html = """
+<span style="display: inline-block; animation: spin-trophy 3s linear infinite; vertical-align: middle; margin-left: 6px; font-size: 1.4rem;">
+🏆
+</span>
+<style>
+@keyframes spin-trophy {
+    0% { transform: rotateY(0deg); }
+    100% { transform: rotateY(360deg); }
+}
+</style>
+"""
 
 # 8. 1위 영화 상단 메트릭 카드
 top_movie = df.iloc[0]
-top_trophy = trophy_gif if top_movie["audiAcc"] >= 1000000 else ""
+top_trophy = trophy_icon_html if top_movie["audiAcc"] >= 1000000 else ""
 
-st.markdown(f"### 🥇 1위: {top_movie['movieNm']}{top_trophy}", unsafe_allow_html=True)
+st.markdown(
+    f"### 🥇 1위: {top_movie['movieNm']}{top_trophy}", unsafe_allow_html=True
+)
 
 col1, col2, col3 = st.columns(3)
 with col1:
@@ -121,40 +133,51 @@ st.divider()
 st.subheader("📊 관객수 상위 5개 영화")
 top5_df = df.head(5).copy()
 
-top5_df["구분"] = top5_df["rank"].apply(lambda r: "🥇 1위 (황금)" if r == 1 else "일반 순위")
+top5_df["구분"] = top5_df["rank"].apply(
+    lambda r: "🥇 1위 (황금)" if r == 1 else "일반 순위"
+)
 
-chart = alt.Chart(top5_df).mark_bar(
-    cornerRadiusTopLeft=6,
-    cornerRadiusTopRight=6
-).encode(
-    x=alt.X("movieNm:N", sort=None, title="영화명"),
-    y=alt.Y("audiCnt:Q", title="당일 관객수(명)"),
-    color=alt.Color(
-        "구분:N",
-        scale=alt.Scale(
-            domain=["🥇 1위 (황금)", "일반 순위"],
-            range=["#FFD700", "#4A90E2"]  # 1위는 황금색, 나머지는 파란색
-        )
-    ),
-    tooltip=[
-        alt.Tooltip("movieNm:N", title="영화명"),
-        alt.Tooltip("audiCnt:Q", title="관객수", format=",")
-    ]
-).properties(height=350)
+chart = (
+    alt.Chart(top5_df)
+    .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+    .encode(
+        x=alt.X("movieNm:N", sort=None, title="영화명"),
+        y=alt.Y("audiCnt:Q", title="당일 관객수(명)"),
+        color=alt.Color(
+            "구분:N",
+            scale=alt.Scale(
+                domain=["🥇 1위 (황금)", "일반 순위"],
+                range=["#FFD700", "#4A90E2"],  # 1위: 황금색, 나머지: 파란색
+            ),
+        ),
+        tooltip=[
+            alt.Tooltip("movieNm:N", title="영화명"),
+            alt.Tooltip("audiCnt:Q", title="관객수", format=","),
+        ],
+    )
+    .properties(height=350)
+)
 
 st.altair_chart(chart, use_container_width=True)
 
 st.divider()
 
-# 10. 전체 순위 리스트 (회전 트로피 GIF 정상 표시)
+# 10. 전체 순위 리스트 (회전 트로피 애니메이션 적용)
 st.subheader("📋 박스오피스 전체 순위")
 
 for idx, row in df.iterrows():
     is_million = row["audiAcc"] >= 1000000
-    trophy_html = f" {trophy_gif} <span style='color: #d97706; font-size: 0.85rem; font-weight: bold;'>(100만 돌파!)</span>" if is_million else ""
-    
-    st.markdown(f"#### {int(row['rank'])}위. **{row['movieNm']}**{trophy_html}", unsafe_allow_html=True)
-    
+    trophy_html = (
+        f" {trophy_icon_html} <span style='color: #d97706; font-size: 0.85rem; font-weight: bold;'>(100만 돌파!)</span>"
+        if is_million
+        else ""
+    )
+
+    st.markdown(
+        f"#### {int(row['rank'])}위. **{row['movieNm']}**{trophy_html}",
+        unsafe_allow_html=True,
+    )
+
     s1, s2, s3, s4 = st.columns(4)
     with s1:
         st.caption("순위 증감")
@@ -168,6 +191,6 @@ for idx, row in df.iterrows():
     with s4:
         st.caption("누적 관객수")
         st.write(f"**{int(row['audiAcc']):,}** 명")
-        
+
     st.write("")
     st.divider()
