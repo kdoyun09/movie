@@ -5,7 +5,7 @@ import pytz
 import requests
 import streamlit as st
 
-# 페이지 설정
+# 페이지 기본 설정
 st.set_page_config(
     page_title="일별 박스오피스 순위", page_icon="🎬", layout="wide"
 )
@@ -41,7 +41,7 @@ selected_date = st.date_input(
 
 target_date = selected_date.strftime("%Y%m%d")
 date_display = selected_date.strftime("%Y-%m-%d")
-st.caption("기준 날짜: " + date_display + " (한국 시간 기준)")
+st.caption(f"기준 날짜: {date_display} (한국 시간 기준)")
 
 # API 키 유효성 확인
 if not api_key:
@@ -49,7 +49,7 @@ if not api_key:
     st.info("Secrets 항목에 KOBIS_KEY를 등록해 주세요.")
     st.stop()
 
-# 4. API 데이터 요청
+# 4. KOBIS 박스오피스 API 요청
 url = "https://www.kobis.or.kr/kobisopenapi/webservice/rest/boxoffice/searchDailyBoxOfficeList.json"
 params = {"key": api_key, "targetDt": target_date}
 
@@ -100,26 +100,27 @@ def format_rank_change(val):
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
 
-# 8. 실물 영화 포스터 검색 함수 (TMDB 오픈 포스터 연결)
+# 8. 실물 영화 포스터 검색 함수
 @st.cache_data(ttl=86400)
 def get_real_poster_url(movie_name):
     try:
-        search_url = "https://api.themoviedb.org/3/search/movie"
-        tmdb_key = "15d2ea6d0dc1d476efbca3eba2b9bbf3"
-        p = {"api_key": tmdb_key, "query": movie_name, "language": "ko-KR"}
-        res = requests.get(search_url, params=p, timeout=5)
-        res_data = res.json()
-        results = res_data.get("results", [])
-        if results and results[0].get("poster_path"):
-            path = results[0]["poster_path"]
-            return f"https://image.tmdb.org/t/p/w500{path}"
+        # TMDB 오픈 웹 포스터 주소 연결
+        encoded_query = urllib.parse.quote(movie_name)
+        search_url = f"https://api.themoviedb.org/3/search/movie?api_key=f89a6c172ad052478546b533f8e5b4fe&query={encoded_query}&language=ko-KR"
+        res = requests.get(search_url, timeout=4)
+        if res.status_code == 200:
+            results = res.json().get("results", [])
+            if results and results[0].get("poster_path"):
+                return f"https://image.tmdb.org/t/p/w500{results[0]['poster_path']}"
     except Exception:
         pass
-    encoded_text = urllib.parse.quote("POSTER")
-    return f"https://dummyimage.com/300x420/222222/ffd700.png&text={encoded_text}"
+
+    # 백업용 영화 아이콘 그래픽 카드
+    encoded_title = urllib.parse.quote(movie_name[:6])
+    return f"https://dummyimage.com/300x420/1e293b/f8fafc.png&text={encoded_title}"
 
 
-# 9. Top 1 영화 지표 카드 (에러 방지를 위해 한 줄로 단축)
+# 9. 1위 영화 상단 카드 출력
 top_movie = df.iloc[0]
 
 st.subheader(f"🥇 1위: {top_movie['movieNm']}")
@@ -148,30 +149,3 @@ for idx, row in top5_df.iterrows():
 top5_df["차트표시명"] = chart_titles
 
 chart_df = top5_df.set_index("차트표시명")[["audiCnt"]]
-chart_df.columns = ["당일 관객수"]
-
-st.bar_chart(chart_df)
-
-st.divider()
-
-# 11. 넓은 여백의 실물 영화 포스터 카드리스트
-st.subheader("📋 전체 순위 및 포스터")
-
-for idx, row in df.iterrows():
-    poster_url = get_real_poster_url(row["movieNm"])
-    is_million = row["audiAcc"] >= 1000000
-
-    col_poster, col_info = st.columns([2.5, 7.5])
-
-    with col_poster:
-        st.image(
-            poster_url,
-            caption=f"{int(row['rank'])}위 포스터",
-            use_column_width=True,
-        )
-
-    with col_info:
-        badge = " 🏆 (100만 관객 돌파!)" if is_million else ""
-        st.markdown(f"### {int(row['rank'])}위. {row['movieNm']}{badge}")
-
-        sub1, sub2, sub3
