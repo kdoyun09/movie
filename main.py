@@ -98,24 +98,16 @@ def format_rank_change(val):
 
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
-
-# 8. 100만 관객 돌파 시 빙글빙글 돌아가는 3D 트로피 GIF 적용
-def format_movie_title(row):
-    title = row["movieNm"]
-    if row["audiAcc"] >= 1000000:
-        # 빙글빙글 회전하는 3D 트로피 GIF
-        spinning_trophy = '<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcDQ3OHI3bzB5Z2I1OGNkdHlhOGoxNHUzaXgwbTN5NXBybGF1NWdtOCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/l41Yc0uM3qA4M8Obe/giphy.gif" width="28" style="vertical-align: middle; margin-left: 6px;">'
-        return f"{title} {spinning_trophy}"
-    return title
-
-
-df["표시영화명"] = df.apply(format_movie_title, axis=1)
-
-# 9. 1위 영화 상단 카드 출력
+# 8. 1위 영화 상단 메트릭 카드
 top_movie = df.iloc[0]
 
+# 100만 관객 돌파 시 회전 트로피 GIF 추가
+spinning_trophy = '<img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcDQ3OHI3bzB5Z2I1OGNkdHlhOGoxNHUzaXgwbTN5NXBybGF1NWdtOCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/l41Yc0uM3qA4M8Obe/giphy.gif" width="30" style="vertical-align: middle; margin-left: 6px;">'
+top_trophy_html = spinning_trophy if top_movie["audiAcc"] >= 1000000 else ""
+
 st.markdown(
-    f"<h3>🥇 1위: {top_movie['표시영화명']}</h3>", unsafe_allow_html=True
+    f"### 🥇 1위: {top_movie['movieNm']}{top_trophy_html}",
+    unsafe_allow_html=True,
 )
 
 col1, col2, col3 = st.columns(3)
@@ -128,7 +120,7 @@ with col3:
 
 st.divider()
 
-# 10. 상위 5개 영화 막대그래프 (1등 막대만 황금색 강조)
+# 9. 상위 5개 영화 막대그래프 (1등 황금색 강조)
 st.subheader("📊 관객수 상위 5개 영화")
 top5_df = df.head(5).copy()
 
@@ -146,7 +138,7 @@ chart = (
             "구분:N",
             scale=alt.Scale(
                 domain=["🥇 1위 (황금)", "일반 순위"],
-                range=["#FFD700", "#4A90E2"],  # 1위는 황금색, 나머지는 파란색
+                range=["#FFD700", "#4A90E2"],  # 1위: 황금색, 나머지: 파란색
             ),
         ),
         tooltip=[
@@ -161,44 +153,9 @@ st.altair_chart(chart, use_container_width=True)
 
 st.divider()
 
-# 11. 깔끔한 전체 순위 데이터 표 (HTML GIF 표시 지원)
+# 10. 전체 순위 리스트 (회전 트로피 GIF 완벽 지원)
 st.subheader("📋 박스오피스 전체 순위")
 
-display_df = df[
-    [
-        "rank",
-        "순위증감",
-        "표시영화명",
-        "openDt",
-        "audiCnt",
-        "audiAcc",
-        "scrnCnt",
-    ]
-].copy()
-
-display_df.columns = [
-    "순위",
-    "순위 증감",
-    "영화명",
-    "개봉일",
-    "관객수(명)",
-    "누적관객수(명)",
-    "스크린수(개)",
-]
-
-st.data_editor(
-    display_df,
-    use_container_width=True,
-    hide_index=True,
-    disabled=True,
-    column_config={
-        "순위": st.column_config.NumberColumn(format="%d"),
-        "영화명": st.column_config.HtmlColumn(
-            "영화명",
-            help="100만 관객을 넘으면 빙글빙글 회전하는 트로피가 표시됩니다.",
-        ),
-        "관객수(명)": st.column_config.NumberColumn(format="%d"),
-        "누적관객수(명)": st.column_config.NumberColumn(format="%d"),
-        "스크린수(개)": st.column_config.NumberColumn(format="%d"),
-    },
-)
+for idx, row in df.iterrows():
+    is_million = row["audiAcc"] >= 1000000
+    trophy
