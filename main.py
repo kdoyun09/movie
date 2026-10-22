@@ -1,6 +1,6 @@
 import datetime
-import altair as alt
 import pandas as pd
+import plotly.graph_objects as go
 import pytz
 import requests
 import streamlit as st
@@ -98,7 +98,7 @@ def format_rank_change(val):
 
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
-# 3D 입체 원근감 및 회전 애니메이션이 적용된 황금 트로피
+# 3D 입체 회전 트로피 HTML
 trophy_3d_html = """
 <span style="display: inline-block; perspective: 1000px; vertical-align: middle; margin-left: 8px;">
     <span style="display: inline-block; font-size: 1.6rem; transform-style: preserve-3d; animation: spin3D 2.5s infinite linear; filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.3));">🏆</span>
@@ -112,7 +112,7 @@ trophy_3d_html = """
 </style>
 """
 
-# 8. 1위 영화 상단 메트릭 카드
+# 8. 1위 영화 상단 카드
 top_movie = df.iloc[0]
 top_trophy = trophy_3d_html if top_movie["audiAcc"] >= 1000000 else ""
 
@@ -130,40 +130,39 @@ with col3:
 
 st.divider()
 
-# 9. 상위 5개 영화 막대그래프 (1등 황금색 강조)
-st.subheader("📊 관객수 상위 5개 영화")
+# 9. 상위 5개 영화 3D 입체 원그래프 (Plotly 활용)
+st.subheader("📊 관객수 점유율 상위 5개 영화 (3D 입체 원그래프)")
 top5_df = df.head(5).copy()
 
-top5_df["구분"] = top5_df["rank"].apply(
-    lambda r: "🥇 1위 (황금)" if r == 1 else "일반 순위"
+# 1위는 황금색(#FFD700), 나머지는 차별화된 색상 팔레트 지정
+custom_colors = ["#FFD700", "#3B82F6", "#10B981", "#F59E0B", "#8B5CF6"]
+
+fig = go.Figure(
+    data=[
+        go.Pie(
+            labels=top5_df["movieNm"],
+            values=top5_df["audiCnt"],
+            hole=0.4,  # 중앙이 뚫린 입체 도넛 3D 스타일
+            pull=[0.1, 0, 0, 0, 0],  # 1위 조각을 살짝 강조하여 돌출시킴
+            marker=dict(colors=custom_colors),
+            textinfo="label+percent",
+            hoverinfo="label+value+percent",
+            hovertemplate="<b>%{label}</b><br>관객수: %{value:,}명<br>비율: %{percent}<extra></extra>",
+        )
+    ]
 )
 
-chart = (
-    alt.Chart(top5_df)
-    .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
-    .encode(
-        x=alt.X("movieNm:N", sort=None, title="영화명"),
-        y=alt.Y("audiCnt:Q", title="당일 관객수(명)"),
-        color=alt.Color(
-            "구분:N",
-            scale=alt.Scale(
-                domain=["🥇 1위 (황금)", "일반 순위"],
-                range=["#FFD700", "#4A90E2"],  # 1위: 황금색(#FFD700), 나머지: 파란색
-            ),
-        ),
-        tooltip=[
-            alt.Tooltip("movieNm:N", title="영화명"),
-            alt.Tooltip("audiCnt:Q", title="관객수", format=","),
-        ],
-    )
-    .properties(height=350)
+fig.update_layout(
+    margin=dict(t=20, b=20, l=20, r=20),
+    height=400,
+    showlegend=True,
 )
 
-st.altair_chart(chart, use_container_width=True)
+st.plotly_chart(fig, use_container_width=True)
 
 st.divider()
 
-# 10. 전체 순위 리스트 (3D 회전 트로피 및 상세 정보)
+# 10. 전체 순위 리스트 (3D 회전 트로피 적용)
 st.subheader("📋 박스오피스 전체 순위")
 
 for idx, row in df.iterrows():
