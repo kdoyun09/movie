@@ -1,9 +1,8 @@
 import datetime
 import urllib.parse
-import requests
-import altair as alt
 import pandas as pd
 import pytz
+import requests
 import streamlit as st
 
 # 페이지 기본 설정
@@ -29,11 +28,10 @@ def get_yesterday_kst():
     return now_kst.date() - datetime.timedelta(days=1)
 
 
-# API 키 확인 및 날짜 계산
 api_key = get_api_key()
 max_selectable_date = get_yesterday_kst()
 
-# 3. 달력을 통한 조회 날짜 선택 UI
+# 3. 달력 조회 날짜 선택 UI
 selected_date = st.date_input(
     label="📅 조회할 날짜를 선택하세요 (최대 어제까지 선택 가능)",
     value=max_selectable_date,
@@ -42,17 +40,13 @@ selected_date = st.date_input(
 )
 
 target_date = selected_date.strftime("%Y%m%d")
-st.caption(
-    f" 기준 날짜: {selected_date.strftime('%Y-%m-%d')} (한국 시간 기준)"
-)
+st.caption(f" 기준 날짜: {selected_date.strftime('%Y-%m-%d')} (한국 시간 기준)")
 
-# API 키 예외 처리
+# API 키가 secrets에 없는 경우 예외 처리
 if not api_key:
     st.error("🔑 API 키(KOBIS_KEY)를 찾을 수 없습니다.")
     st.info(
-        "**확인 및 조치 방법:**\n"
-        "1. 로컬 환경일 경우 `.streamlit/secrets.toml` 파일에 `KOBIS_KEY = '발급받은키'`를 작성했는지 확인하세요.\n"
-        "2. Streamlit Cloud 배포 환경일 경우 설정 메뉴의 **App settings -> Secrets**에 `KOBIS_KEY`가 올바르게 등록되었는지 확인하세요."
+        "**조치 방법:** Streamlit Cloud 설정의 **Secrets** 메뉴에 `KOBIS_KEY = '발급받은키'`를 등록해 주세요."
     )
     st.stop()
 
@@ -107,11 +101,9 @@ def format_rank_change(val):
 df["순위증감"] = df["rankInten"].apply(format_rank_change)
 
 
-# 8. 인터넷 이미지 플레이스홀더 / 웹 검색용 포스터 URL 생성 함수
+# 8. 포스터 URL 생성 함수
 def get_poster_url(movie_name):
-    # 인터넷 오픈 이미지 검색용 파라미터 생성 (영화 제목 기반 웹 썸네일 경로)
     encoded_title = urllib.parse.quote(movie_name)
-    # 이미지 로딩이 안 될 경우를 대비한 자동 포스터 플레이스홀더
     return f"https://placehold.co/300x420/1e1e1e/FFD700?text={encoded_title}"
 
 
@@ -136,19 +128,36 @@ with col3:
 
 st.divider()
 
-# 10. 상위 5개 영화 막대그래프 (1등 막대: 황금색)
+# 10. 상위 5개 영화 관객수 막대그래프
 st.subheader("📊 관객수 상위 5개 영화")
 top5_df = df.head(5).copy()
 
-top5_df["막대색상"] = top5_df["rank"].apply(
-    lambda r: "✨ 1위 황금빛 챔피언" if r == 1 else "일반 영화"
-)
+# 차트용 이름 변환 (1등 표기)
+chart_titles = []
+for idx, row in top5_df.iterrows():
+    if row["rank"] == 1:
+        chart_titles.append(f"👑 1위: {row['movieNm']}")
+    else:
+        chart_titles.append(f"{int(row['rank'])}위: {row['movieNm']}")
 
-chart = (
-    alt.Chart(top5_df)
-    .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
-    .encode(
-        x=alt.X("movieNm:N", sort=None, title="영화명"),
-        y=alt.Y("audiCnt:Q", title="당일 관객수(명)"),
-        color=alt.Color(
-            "막대색상
+top5_df["차트표시명"] = chart_titles
+
+chart_df = top5_df.set_index("차트표시명")[["audiCnt"]]
+chart_df.columns = ["당일 관객수"]
+
+st.bar_chart(chart_df)
+
+st.divider()
+
+# 11. 간격이 넓은 영화 포스터 갤러리/카드리스트 출력
+st.subheader("📋 전체 순위 및 포스터")
+
+st.markdown(
+    """
+    <style>
+    .movie-card {
+        background-color: #f8f9fa;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 25px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0
